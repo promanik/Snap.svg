@@ -2041,6 +2041,8 @@ function Element(el) {
      - duration (number) duration, in milliseconds
      - easing (function) #optional easing function from @mina or custom
      - callback (function) #optional callback function to execute when animation ends
+     - startframe (number) #optional Where to start animation from
+     - endframe (number) #optional Where to stop animation
      = (object) animation object in @mina format
      o {
      o     id (string) animation id, consider it read-only,
@@ -2059,13 +2061,13 @@ function Element(el) {
      | // in given context is equivalent to
      | rect.animate({x: 10}, 1000);
     \*/
-    Snap.animate = function (from, to, setter, ms, easing, callback) {
+    Snap.animate = function (from, to, setter, ms, easing, callback, startframe, endframe) {
         if (typeof easing == "function" && !easing.length) {
             callback = easing;
             easing = mina.linear;
         }
         var now = mina.time(),
-            anim = mina(from, to, now, now + ms, mina.time, setter, easing);
+            anim = mina(from, to, now, now + ms, mina.time, setter, easing, startframe, endframe);
         callback && eve.once("mina.finish." + anim.id, callback);
         return anim;
     };
@@ -2094,9 +2096,11 @@ function Element(el) {
      - duration (number) duration of the animation in milliseconds
      - easing (function) #optional easing function from @mina or custom
      - callback (function) #optional callback function that executes when the animation ends
+     - startframe (number) #optional Where to start animation from
+     - endframe (number) #optional Where to stop animation
      = (Element) the current element
     \*/
-    elproto.animate = function (attrs, ms, easing, callback) {
+    elproto.animate = function (attrs, ms, easing, callback, startframe, endframe) {
         if (typeof easing == "function" && !easing.length) {
             callback = easing;
             easing = mina.linear;
@@ -2131,7 +2135,7 @@ function Element(el) {
                     attr[key] = keys[key](val);
                 }
                 el.attr(attr);
-            }, easing);
+            }, easing, startframe, endframe);
         el.anims[anim.id] = anim;
         anim._attrs = attrs;
         anim._callback = callback;
@@ -2143,6 +2147,45 @@ function Element(el) {
         eve.once("mina.stop." + anim.id, function () {
             delete el.anims[anim.id];
         });
+        return el;
+    };
+    // 2014-11-18 Move immediately to a frame (0,1)
+    elproto.frame_to = function (from_attrs, to_attrs, easing, frame) {
+        if (from_attrs instanceof Animation) {
+            from_attrs = from_attrs.attr;
+        }
+        if (to_attrs instanceof Animation) {
+            to_attrs = to_attrs.attr;
+        }
+        var fkeys = [], tkeys = [], keys = {}, from, to, f, eq,
+            el = this;
+        for (var key in from_attrs) if (from_attrs[has](key)) {
+            if (el.equal) {
+                eq = el.equal(key, Str(from_attrs[key]));
+                from = eq.to;
+                eq = el.equal(key, Str(to_attrs[key]));
+                to = eq.to;
+                f = eq.f;
+            } else {
+                from = +el.attr(key);
+                to = +attrs[key];
+            }
+
+            var len = is(from, "array") ? from.length : 1;
+            keys[key] = slice(fkeys.length, fkeys.length + len, f);
+            fkeys = fkeys.concat(from);
+            tkeys = tkeys.concat(to);
+        }
+        var now = mina.time(),
+            anim = mina(fkeys, tkeys, now, now, mina.time, function (val) {
+                var attr = {};
+                for (var key in keys) if (keys[has](key)) {
+                    attr[key] = keys[key](val);
+                }
+                el.attr(attr);
+            }, easing, frame, frame);
+        el.anims[anim.id] = anim;
+        anim._attrs = from_attrs;
         return el;
     };
     var eldata = {};

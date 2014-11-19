@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 // 
-// build: 2014-06-03
+// build: 2014-11-19
 // Copyright (c) 2013 Adobe Systems Incorporated. All rights reserved.
 // 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -529,21 +529,35 @@ var mina = (function (eve) {
         delete a.pdif;
         animations[a.id] = a;
     },
-    update = function () {
+    // 2014-11-18  Added frame argument (0,1) to specify where to update
+    update = function (frame) {
         var a = this,
             res;
+        var pos = (frame == null) ? a.s : frame;
         if (isArray(a.start)) {
             res = [];
             for (var j = 0, jj = a.start.length; j < jj; j++) {
                 res[j] = +a.start[j] +
-                    (a.end[j] - a.start[j]) * a.easing(a.s);
+                    (a.end[j] - a.start[j]) * a.easing(pos);
             }
         } else {
-            res = +a.start + (a.end - a.start) * a.easing(a.s);
+            res = +a.start + (a.end - a.start) * a.easing(pos);
         }
         a.set(res);
     },
-    frame = function () {
+    // 2014-11-18 Move to a specific frame
+    frameupdate = function (frame) {
+        // Compute the state for any frame, given a (0,1) value.
+        // (A combination of frame and update)
+        for (var i in animations) if (animations.hasOwnProperty(i)) {
+            var a = animations[i];
+            a.s = frame
+            a.update(frame);
+            delete animations[i];
+        }
+    },
+    // 2014-11-18 frame called by requestAnimFrame so it has a timestamp arg
+    frame = function (timestamp) {
         var len = 0;
         for (var i in animations) if (animations.hasOwnProperty(i)) {
             var a = animations[i],
@@ -551,9 +565,17 @@ var mina = (function (eve) {
                 res;
             len++;
             a.s = (b - a.b) / (a.dur / a.spd);
-            if (a.s >= 1) {
+            if (a.startframe == a.endframe) {
+                // Update each animation to this point
+                frameupdate(a.startframe);
+                return;
+            }
+            if (a.s < a.startframe) {
+                a.s = a.startframe;
+            }
+            if (a.s >= a.endframe) {
                 delete animations[i];
-                a.s = 1;
+                a.s = a.endframe;
                 len--;
                 (function (a) {
                     setTimeout(function () {
@@ -578,6 +600,8 @@ var mina = (function (eve) {
      - get (function) getter of _master_ number (see @mina.time)
      - set (function) setter of _slave_ number
      - easing (function) #optional easing function, default is @mina.linear
+     - startframe (number) #optional Where to start animation from
+     - endframe (number) #optional Where to stop animation
      = (object) animation descriptor
      o {
      o         id (string) animation id,
@@ -599,13 +623,13 @@ var mina = (function (eve) {
      o         update (function) calles setter with the right value of the animation
      o }
     \*/
-    mina = function (a, A, b, B, get, set, easing) {
+    mina = function (a, A, b, B, get, set, easing, startframe, endframe) {
         var anim = {
             id: ID(),
             start: a,
             end: A,
             b: b,
-            s: 0,
+            s: startframe || 0,
             dur: B - b,
             spd: 1,
             get: get,
@@ -617,7 +641,9 @@ var mina = (function (eve) {
             stop: stopit,
             pause: pause,
             resume: resume,
-            update: update
+            update: update,
+            startframe: startframe || 0,
+            endframe: endframe || 1
         };
         animations[anim.id] = anim;
         var len = 0, i;
@@ -2831,6 +2857,8 @@ function Element(el) {
      - duration (number) duration, in milliseconds
      - easing (function) #optional easing function from @mina or custom
      - callback (function) #optional callback function to execute when animation ends
+     - startframe (number) #optional Where to start animation from
+     - endframe (number) #optional Where to stop animation
      = (object) animation object in @mina format
      o {
      o     id (string) animation id, consider it read-only,
@@ -2849,13 +2877,13 @@ function Element(el) {
      | // in given context is equivalent to
      | rect.animate({x: 10}, 1000);
     \*/
-    Snap.animate = function (from, to, setter, ms, easing, callback) {
+    Snap.animate = function (from, to, setter, ms, easing, callback, startframe, endframe) {
         if (typeof easing == "function" && !easing.length) {
             callback = easing;
             easing = mina.linear;
         }
         var now = mina.time(),
-            anim = mina(from, to, now, now + ms, mina.time, setter, easing);
+            anim = mina(from, to, now, now + ms, mina.time, setter, easing, startframe, endframe);
         callback && eve.once("mina.finish." + anim.id, callback);
         return anim;
     };
@@ -2884,9 +2912,11 @@ function Element(el) {
      - duration (number) duration of the animation in milliseconds
      - easing (function) #optional easing function from @mina or custom
      - callback (function) #optional callback function that executes when the animation ends
+     - startframe (number) #optional Where to start animation from
+     - endframe (number) #optional Where to stop animation
      = (Element) the current element
     \*/
-    elproto.animate = function (attrs, ms, easing, callback) {
+    elproto.animate = function (attrs, ms, easing, callback, startframe, endframe) {
         if (typeof easing == "function" && !easing.length) {
             callback = easing;
             easing = mina.linear;
@@ -2921,7 +2951,7 @@ function Element(el) {
                     attr[key] = keys[key](val);
                 }
                 el.attr(attr);
-            }, easing);
+            }, easing, startframe, endframe);
         el.anims[anim.id] = anim;
         anim._attrs = attrs;
         anim._callback = callback;
@@ -2933,6 +2963,45 @@ function Element(el) {
         eve.once("mina.stop." + anim.id, function () {
             delete el.anims[anim.id];
         });
+        return el;
+    };
+    // 2014-11-18 Move immediately to a frame (0,1)
+    elproto.frame_to = function (from_attrs, to_attrs, easing, frame) {
+        if (from_attrs instanceof Animation) {
+            from_attrs = from_attrs.attr;
+        }
+        if (to_attrs instanceof Animation) {
+            to_attrs = to_attrs.attr;
+        }
+        var fkeys = [], tkeys = [], keys = {}, from, to, f, eq,
+            el = this;
+        for (var key in from_attrs) if (from_attrs[has](key)) {
+            if (el.equal) {
+                eq = el.equal(key, Str(from_attrs[key]));
+                from = eq.to;
+                eq = el.equal(key, Str(to_attrs[key]));
+                to = eq.to;
+                f = eq.f;
+            } else {
+                from = +el.attr(key);
+                to = +attrs[key];
+            }
+
+            var len = is(from, "array") ? from.length : 1;
+            keys[key] = slice(fkeys.length, fkeys.length + len, f);
+            fkeys = fkeys.concat(from);
+            tkeys = tkeys.concat(to);
+        }
+        var now = mina.time(),
+            anim = mina(fkeys, tkeys, now, now, mina.time, function (val) {
+                var attr = {};
+                for (var key in keys) if (keys[has](key)) {
+                    attr[key] = keys[key](val);
+                }
+                el.attr(attr);
+            }, easing, frame, frame);
+        el.anims[anim.id] = anim;
+        anim._attrs = from_attrs;
         return el;
     };
     var eldata = {};

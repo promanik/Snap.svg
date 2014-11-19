@@ -95,21 +95,35 @@ var mina = (function (eve) {
         delete a.pdif;
         animations[a.id] = a;
     },
-    update = function () {
+    // 2014-11-18  Added frame argument (0,1) to specify where to update
+    update = function (frame) {
         var a = this,
             res;
+        var pos = (frame == null) ? a.s : frame;
         if (isArray(a.start)) {
             res = [];
             for (var j = 0, jj = a.start.length; j < jj; j++) {
                 res[j] = +a.start[j] +
-                    (a.end[j] - a.start[j]) * a.easing(a.s);
+                    (a.end[j] - a.start[j]) * a.easing(pos);
             }
         } else {
-            res = +a.start + (a.end - a.start) * a.easing(a.s);
+            res = +a.start + (a.end - a.start) * a.easing(pos);
         }
         a.set(res);
     },
-    frame = function () {
+    // 2014-11-18 Move to a specific frame
+    frameupdate = function (frame) {
+        // Compute the state for any frame, given a (0,1) value.
+        // (A combination of frame and update)
+        for (var i in animations) if (animations.hasOwnProperty(i)) {
+            var a = animations[i];
+            a.s = frame
+            a.update(frame);
+            delete animations[i];
+        }
+    },
+    // 2014-11-18 frame called by requestAnimFrame so it has a timestamp arg
+    frame = function (timestamp) {
         var len = 0;
         for (var i in animations) if (animations.hasOwnProperty(i)) {
             var a = animations[i],
@@ -117,9 +131,17 @@ var mina = (function (eve) {
                 res;
             len++;
             a.s = (b - a.b) / (a.dur / a.spd);
-            if (a.s >= 1) {
+            if (a.startframe == a.endframe) {
+                // Update each animation to this point
+                frameupdate(a.startframe);
+                return;
+            }
+            if (a.s < a.startframe) {
+                a.s = a.startframe;
+            }
+            if (a.s >= a.endframe) {
                 delete animations[i];
-                a.s = 1;
+                a.s = a.endframe;
                 len--;
                 (function (a) {
                     setTimeout(function () {
@@ -144,6 +166,8 @@ var mina = (function (eve) {
      - get (function) getter of _master_ number (see @mina.time)
      - set (function) setter of _slave_ number
      - easing (function) #optional easing function, default is @mina.linear
+     - startframe (number) #optional Where to start animation from
+     - endframe (number) #optional Where to stop animation
      = (object) animation descriptor
      o {
      o         id (string) animation id,
@@ -165,13 +189,13 @@ var mina = (function (eve) {
      o         update (function) calles setter with the right value of the animation
      o }
     \*/
-    mina = function (a, A, b, B, get, set, easing) {
+    mina = function (a, A, b, B, get, set, easing, startframe, endframe) {
         var anim = {
             id: ID(),
             start: a,
             end: A,
             b: b,
-            s: 0,
+            s: startframe || 0,
             dur: B - b,
             spd: 1,
             get: get,
@@ -183,7 +207,9 @@ var mina = (function (eve) {
             stop: stopit,
             pause: pause,
             resume: resume,
-            update: update
+            update: update,
+            startframe: startframe || 0,
+            endframe: endframe || 1
         };
         animations[anim.id] = anim;
         var len = 0, i;
