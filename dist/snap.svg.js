@@ -543,6 +543,9 @@ var mina = (function (eve) {
         } else {
             res = +a.start + (a.end - a.start) * a.easing(pos);
         }
+        if (a.progress) {
+            a.progress(pos);
+        }
         a.set(res);
     },
     // 2014-11-18 Move to a specific frame
@@ -600,6 +603,7 @@ var mina = (function (eve) {
      - get (function) getter of _master_ number (see @mina.time)
      - set (function) setter of _slave_ number
      - easing (function) #optional easing function, default is @mina.linear
+     - progress (function) #optional callback when animation changes
      - startframe (number) #optional Where to start animation from
      - endframe (number) #optional Where to stop animation
      = (object) animation descriptor
@@ -623,7 +627,7 @@ var mina = (function (eve) {
      o         update (function) calles setter with the right value of the animation
      o }
     \*/
-    mina = function (a, A, b, B, get, set, easing, startframe, endframe) {
+    mina = function (a, A, b, B, get, set, easing, progress, startframe, endframe) {
         var anim = {
             id: ID(),
             start: a,
@@ -642,6 +646,7 @@ var mina = (function (eve) {
             pause: pause,
             resume: resume,
             update: update,
+            progress: progress,
             startframe: (startframe == null) ? 0 : startframe,
             endframe: (endframe == null) ? 1 : endframe,
         };
@@ -2857,6 +2862,7 @@ function Element(el) {
      - duration (number) duration, in milliseconds
      - easing (function) #optional easing function from @mina or custom
      - callback (function) #optional callback function to execute when animation ends
+     - progress (function) #optional callback function to execute when animation changes
      - startframe (number) #optional Where to start animation from
      - endframe (number) #optional Where to stop animation
      = (object) animation object in @mina format
@@ -2877,13 +2883,13 @@ function Element(el) {
      | // in given context is equivalent to
      | rect.animate({x: 10}, 1000);
     \*/
-    Snap.animate = function (from, to, setter, ms, easing, callback, startframe, endframe) {
+    Snap.animate = function (from, to, setter, ms, easing, callback, progress, startframe, endframe) {
         if (typeof easing == "function" && !easing.length) {
             callback = easing;
             easing = mina.linear;
         }
         var now = mina.time(),
-            anim = mina(from, to, now, now + ms, mina.time, setter, easing, startframe, endframe);
+        anim = mina(from, to, now, now + ms, mina.time, setter, easing, progress, startframe, endframe);
         callback && eve.once("mina.finish." + anim.id, callback);
         return anim;
     };
@@ -2912,11 +2918,12 @@ function Element(el) {
      - duration (number) duration of the animation in milliseconds
      - easing (function) #optional easing function from @mina or custom
      - callback (function) #optional callback function that executes when the animation ends
+     - progress (function) #optional callback function to execute when animation changes
      - startframe (number) #optional Where to start animation from
      - endframe (number) #optional Where to stop animation
      = (Element) the current element
     \*/
-    elproto.animate = function (attrs, ms, easing, callback, startframe, endframe) {
+    elproto.animate = function (attrs, ms, easing, callback, progress, startframe, endframe) {
         if (typeof easing == "function" && !easing.length) {
             callback = easing;
             easing = mina.linear;
@@ -2951,7 +2958,7 @@ function Element(el) {
                     attr[key] = keys[key](val);
                 }
                 el.attr(attr);
-            }, easing, startframe, endframe);
+            }, easing, progress, startframe, endframe);
         el.anims[anim.id] = anim;
         anim._attrs = attrs;
         anim._callback = callback;

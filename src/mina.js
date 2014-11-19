@@ -109,6 +109,9 @@ var mina = (function (eve) {
         } else {
             res = +a.start + (a.end - a.start) * a.easing(pos);
         }
+        if (a.progress) {
+            a.progress(pos);
+        }
         a.set(res);
     },
     // 2014-11-18 Move to a specific frame
@@ -166,6 +169,7 @@ var mina = (function (eve) {
      - get (function) getter of _master_ number (see @mina.time)
      - set (function) setter of _slave_ number
      - easing (function) #optional easing function, default is @mina.linear
+     - progress (function) #optional callback when animation changes
      - startframe (number) #optional Where to start animation from
      - endframe (number) #optional Where to stop animation
      = (object) animation descriptor
@@ -189,7 +193,7 @@ var mina = (function (eve) {
      o         update (function) calles setter with the right value of the animation
      o }
     \*/
-    mina = function (a, A, b, B, get, set, easing, startframe, endframe) {
+    mina = function (a, A, b, B, get, set, easing, progress, startframe, endframe) {
         var anim = {
             id: ID(),
             start: a,
@@ -208,6 +212,7 @@ var mina = (function (eve) {
             pause: pause,
             resume: resume,
             update: update,
+            progress: progress,
             startframe: (startframe == null) ? 0 : startframe,
             endframe: (endframe == null) ? 1 : endframe,
         };
