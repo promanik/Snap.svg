@@ -533,7 +533,7 @@ var mina = (function (eve) {
     update = function (frame) {
         var a = this,
             res;
-        var pos = (frame == null) ? a.s : frame;
+        var pos = +((frame == null) ? a.s : frame);
         if (isArray(a.start)) {
             res = [];
             for (var j = 0, jj = a.start.length; j < jj; j++) {
@@ -570,7 +570,7 @@ var mina = (function (eve) {
                 frameupdate(a.startframe);
                 return;
             }
-            if (a.s < a.startframe) {
+            if (a.s <= a.startframe) {
                 a.s = a.startframe;
             }
             if (a.s >= a.endframe) {
@@ -642,8 +642,8 @@ var mina = (function (eve) {
             pause: pause,
             resume: resume,
             update: update,
-            startframe: startframe || 0,
-            endframe: endframe || 1
+            startframe: (startframe == null) ? 0 : startframe,
+            endframe: (endframe == null) ? 1 : endframe,
         };
         animations[anim.id] = anim;
         var len = 0, i;
