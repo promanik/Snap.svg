@@ -3006,7 +3006,7 @@ function Element(el) {
                     attr[key] = keys[key](val);
                 }
                 el.attr(attr);
-            }, easing, frame, frame);
+            }, easing, null, frame, frame);
         el.anims[anim.id] = anim;
         anim._attrs = from_attrs;
         return el;
