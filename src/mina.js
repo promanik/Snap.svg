@@ -118,11 +118,10 @@ var mina = (function (eve) {
     frameupdate = function (frame) {
         // Compute the state for any frame, given a (0,1) value.
         // (A combination of frame and update)
-        for (var i in animations) if (animations.hasOwnProperty(i)) {
-            var a = animations[i];
-            a.s = frame
+        var a = this;
+        if (a.s != frame) {
+            a.s = frame;
             a.update(frame);
-            delete animations[i];
         }
     },
     // 2014-11-18 frame called by requestAnimFrame so it has a timestamp arg
@@ -136,8 +135,7 @@ var mina = (function (eve) {
             a.s = (b - a.b) / (a.dur / a.spd);
             if (a.startframe == a.endframe) {
                 // Update each animation to this point
-                frameupdate(a.startframe);
-                return;
+                a.frameupdate(a.startframe);
             }
             if (a.s <= a.startframe) {
                 a.s = a.startframe;
@@ -191,6 +189,7 @@ var mina = (function (eve) {
      o         pause (function) pauses the animation
      o         resume (function) resumes the animation
      o         update (function) calles setter with the right value of the animation
+     o         frameupdate (function) Update to a specific frame
      o }
     \*/
     mina = function (a, A, b, B, get, set, easing, progress, startframe, endframe) {
@@ -212,6 +211,7 @@ var mina = (function (eve) {
             pause: pause,
             resume: resume,
             update: update,
+            frameupdate: frameupdate,
             progress: progress,
             startframe: (startframe == null) ? 0 : startframe,
             endframe: (endframe == null) ? 1 : endframe,
